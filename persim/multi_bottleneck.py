@@ -14,10 +14,10 @@ from hopcroftkarp import HopcroftKarp
 import warnings
 from ortools.graph import pywrapgraph
 
-__all__ = ["bottleneck"]
+__all__ = ["multi_bottleneck"]
 
 
-def bottleneck(dgm1, dgm2, matching=False):
+def multi_bottleneck(dgm1, dgm2, matching=False):
     """
     Perform the Bottleneck distance matching between persistence diagrams.
     Assumes first two columns of S and T are the coordinates of the persistence
@@ -105,6 +105,8 @@ def bottleneck(dgm1, dgm2, matching=False):
     ds = np.sort(np.unique(D.flatten()))[0:-1] # Everything but np.inf
     bdist = ds[-1]
     matching = {}
+    n0 = D.shape[0]
+    n1 = D.shape[1]
     while len(ds) >= 1:
         idx = 0
         if len(ds) > 1:
@@ -113,9 +115,7 @@ def bottleneck(dgm1, dgm2, matching=False):
         # graph = {}
         graph = pywrapgraph.SimpleMaxFlow()
         # need to have two sentinel nodes, don't know how to make something consistently work
-        n0 = D.shape[0]
         # print(n0)
-        n1 = D.shape[1]
         source = n0 + n1
         sink = n0 + n1 + 1
         for i in range(n0):
@@ -154,7 +154,7 @@ def bottleneck(dgm1, dgm2, matching=False):
     if return_matching:
         matchidx = []
         for i in range(M+N):
-            j = matching["{}".format(i)]
+            j = matching[i] - n1
             d = D[i, j]
             if i < M:
                 if j >= N:
