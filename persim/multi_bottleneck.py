@@ -112,10 +112,7 @@ def multi_bottleneck(dgm1, dgm2, matching=False):
         if len(ds) > 1:
             idx = bisect_left(range(ds.size), int(ds.size / 2))
         d = ds[idx]
-        # graph = {}
         graph = pywrapgraph.SimpleMaxFlow()
-        # need to have two sentinel nodes, don't know how to make something consistently work
-        # print(n0)
         source = n0 + n1
         sink = n0 + n1 + 1
         for i in range(n0):
@@ -127,33 +124,23 @@ def multi_bottleneck(dgm1, dgm2, matching=False):
         for j in range(n1):
             graph.AddArcWithCapacity(j + n0, sink, 1)
 
-        print(graph.NumArcs())
-        # for i in range(D.shape[0]):
-        #     graph["{}".format(i)] = {j for j in range(D.shape[1]) if D[i, j] <= d}
-        # res = HopcroftKarp(graph).maximum_matching()
         graph.Solve(source, sink)
         res = {}
-        # print(graph.OptimalFlow())
-        # print(f"n0:{n0} " + f"n1:{n1}")
         for i in range(graph.NumArcs()):
             if graph.Flow(i) == 1 and graph.Tail(i) is not source and graph.Head(i) is not sink:
                 res[graph.Tail(i)] = graph.Head(i)
-        # print(res)
 
         if D.shape[0] == graph.OptimalFlow() and d <= bdist:
             bdist = d
             matching = res
             ds = ds[0:idx]
-        # if len(res) == 2 * D.shape[0] and d <= bdist:
-        #     bdist = d
-        #     matching = res
-        #     ds = ds[0:idx]
         else:
             ds = ds[idx + 1::]
 
     if return_matching:
         matchidx = []
         for i in range(M+N):
+            # Subtract n1, we initially add it to ensure uniqueness of ids
             j = matching[i] - n1
             d = D[i, j]
             if i < M:
