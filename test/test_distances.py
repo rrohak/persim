@@ -77,7 +77,7 @@ class TestMultiBottleneck:
 
         d, m = multi_bottleneck(
             dgm1, dgm2,
-            matching=True
+            matching=False
         )
         u1 = np.unique(m[:, 0])
         u1 = u1[u1 >= 0]

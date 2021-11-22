@@ -10,7 +10,6 @@
 import numpy as np
 
 from bisect import bisect_left
-from hopcroftkarp import HopcroftKarp
 import warnings
 from ortools.graph import pywrapgraph
 
@@ -55,7 +54,7 @@ def multi_bottleneck(dgm1, dgm2, matching=False):
         S = S[np.isfinite(S[:, 1]), :]
         if S.shape[0] < M:
             warnings.warn(
-                "dgm1 has points with non-finite death times;"+
+                "dgm1 has points with non-finite death times;" +
                 "ignoring those points"
             )
             M = S.shape[0]
@@ -65,7 +64,7 @@ def multi_bottleneck(dgm1, dgm2, matching=False):
         T = T[np.isfinite(T[:, 1]), :]
         if T.shape[0] < N:
             warnings.warn(
-                "dgm2 has points with non-finite death times;"+
+                "dgm2 has points with non-finite death times;" +
                 "ignoring those points"
             )
             N = T.shape[0]
@@ -87,22 +86,26 @@ def multi_bottleneck(dgm1, dgm2, matching=False):
 
     # Put diagonal elements into the matrix, being mindful that Linfinity
     # balls meet the diagonal line at a diamond vertex
-    D = np.zeros((M + N, M + N))
+    D = np.zeros((M + 1, N + 1))
     # Upper left is Linfinity cross-similarity between two diagrams
     D[0:M, 0:N] = DUL
     # Upper right is diagonal matching of points from S
-    UR = np.inf * np.ones((M, M))
-    np.fill_diagonal(UR, 0.5 * (S[:, 1] - S[:, 0]))
-    D[0:M, N::] = UR
+    # UR = np.inf * np.ones((M, M))
+    # np.fill_diagonal(UR, 0.5 * (S[:, 1] - S[:, 0]))
+    D[M, :N] = 0.5 * (S[:, 1] - S[:, 0])
+    # D[0:M, N::] = UR
     # Lower left is diagonal matching of points from T
-    UL = np.inf * np.ones((N, N))
-    np.fill_diagonal(UL, 0.5 * (T[:, 1] - T[:, 0]))
-    D[M::, 0:N] = UL
+    # UL = np.inf * np.ones((N, N))
+    # np.fill_diagonal(UL, 0.5 * (T[:, 1] - T[:, 0]))
+    D[:M, N] = 0.5 * (T[:, 1] - T[:, 0])
+    # D[M::, 0:N] = UL
     # Lower right is all 0s by default (remaining diagonals match to diagonals)
+    multiT = N
+    multiS = M
 
     # Step 2: Perform a binary search + Hopcroft Karp to find the
     # bottleneck distance
-    ds = np.sort(np.unique(D.flatten()))[0:-1] # Everything but np.inf
+    ds = np.sort(np.unique(D.flatten()))[0:-1]  # Everything but np.inf
     bdist = ds[-1]
     matching = {}
     n0 = D.shape[0]
@@ -115,22 +118,40 @@ def multi_bottleneck(dgm1, dgm2, matching=False):
         graph = pywrapgraph.SimpleMaxFlow()
         source = n0 + n1
         sink = n0 + n1 + 1
+        T_diagonal = n0 + n1 - 1
+        S_diagonal = n0 - 1
         for i in range(n0):
             for j in range(n1):
                 if D[i, j] <= d:
-                    graph.AddArcWithCapacity(i, j + n0, 1)
+                    if (i, j) == (n0 - 1, n1 - 1):
+                        graph.AddArcWithCapacity(i, j + n0, multiS)
+                    else:
+                        graph.AddArcWithCapacity(i, j + n0, 1)
+
+        for i in range(n0 - 1):
             graph.AddArcWithCapacity(source, i, 1)
 
-        for j in range(n1):
+        for j in range(n1 - 1):
             graph.AddArcWithCapacity(j + n0, sink, 1)
+
+        # for i in range(n0):
+        #     if D[i, n1] <= d:
+        #         graph.AddArcWithCapacity(i, T_diagonal, multiT)
+        #
+        # for i in range(n1):
+        #     if D[n0, i] <= d:
+        #         graph.AddArcWithCapacity(i, S_diagonal, multiS)
+
+        graph.AddArcWithCapacity(source, S_diagonal, multiS)
+        graph.AddArcWithCapacity(T_diagonal, sink, multiT)
 
         graph.Solve(source, sink)
         res = {}
         for i in range(graph.NumArcs()):
-            if graph.Flow(i) == 1 and graph.Tail(i) is not source and graph.Head(i) is not sink:
+            if graph.Flow(i) == 1 and graph.Tail(i) != source and graph.Head(i) != sink:
                 res[graph.Tail(i)] = graph.Head(i)
 
-        if D.shape[0] == graph.OptimalFlow() and d <= bdist:
+        if M + N == graph.OptimalFlow() and d <= bdist:
             bdist = d
             matching = res
             ds = ds[0:idx]
@@ -139,15 +160,15 @@ def multi_bottleneck(dgm1, dgm2, matching=False):
 
     if return_matching:
         matchidx = []
-        for i in range(M+N):
+        for i in range(M + N):
             # Subtract n1, we initially add it to ensure uniqueness of ids
             j = matching[i] - n1
             d = D[i, j]
             if i < M:
                 if j >= N:
-                    j = -1 # Diagonal match from first persistence diagram
+                    j = -1  # Diagonal match from first persistence diagram
             else:
-                if j >= N: # Diagonal to diagonal, so don't include this
+                if j >= N:  # Diagonal to diagonal, so don't include this
                     continue
                 i = -1
             matchidx.append([i, j, d])
